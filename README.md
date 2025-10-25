@@ -6,7 +6,7 @@ Live object detection + voice commands + intelligent scene understanding
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Windows
 ```
@@ -34,20 +34,20 @@ From any device on **same WiFi**, open the IP address shown!
 
 ---
 
-## ✨ Features
+## Features
 
-- 🔴 **Live webcam stream** - Real-time video processing
-- 🎯 **Object detection** - YOLOv8 identifies obstacles
-- 📏 **Distance estimation** - Measures in meters
-- 🎤 **Voice commands** - Hands-free questions
-- 🤖 **Gemini AI** - Intelligent scene understanding
-- 🔊 **Text-to-speech** - Spoken responses
-- ⚠️ **Safety alerts** - Color-coded warnings
-- 📱 **Mobile ready** - Access from any device
+- **Live webcam stream** - Real-time video processing
+- **Object detection** - YOLOv8 identifies obstacles
+- **Distance estimation** - Measures in meters
+- **Voice commands** - Hands-free questions
+- **Gemini AI** - Intelligent scene understanding
+- **Text-to-speech** - Spoken responses
+- **Safety alerts** - Color-coded warnings
+- **Mobile ready** - Access from any device
 
 ---
 
-## 🎤 How to Use
+## How to Use
 
 1. **Start the app** → `RUN_THIS.bat`
 2. **Click START** → Allow camera access
@@ -65,7 +65,7 @@ From any device on **same WiFi**, open the IP address shown!
 
 ---
 
-## 🤖 Setup Gemini AI
+## Setup Gemini AI
 
 ### Why Gemini?
 Without Gemini, the app uses basic pattern matching. With Gemini, you get:
@@ -88,7 +88,7 @@ Without Gemini, the app uses basic pattern matching. With Gemini, you get:
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - Python 3.8+ (tested on 3.13)
 - Webcam
@@ -105,7 +105,7 @@ Without Gemini, the app uses basic pattern matching. With Gemini, you get:
 
 ---
 
-## 🎯 Color Coding
+## Color Coding
 
 Objects are highlighted by distance:
 - **Red** < 1.5m → DANGER - Stop!
@@ -114,7 +114,7 @@ Objects are highlighted by distance:
 
 ---
 
-## 📱 Mobile Access
+## Mobile Access
 
 1. Run `RUN_THIS.bat` on laptop
 2. Note IP address in terminal
@@ -128,7 +128,7 @@ Objects are highlighted by distance:
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Live Stream
 - **No video?** → Allow camera in browser
@@ -152,12 +152,12 @@ Objects are highlighted by distance:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Tidal-Hack/
-├── RUN_THIS.bat           # 🚀 Main launcher
-├── .env                    # 🔑 Your Gemini API key
+├── RUN_THIS.bat           # Main launcher
+├── .env                    # Your Gemini API key
 ├── env.example             # Template for .env
 ├── requirements.txt        # Dependencies
 ├── config/
@@ -178,7 +178,7 @@ Tidal-Hack/
 
 ---
 
-## 💡 Architecture
+## Architecture
 
 ### Modular Design:
 ```
@@ -203,7 +203,7 @@ Webcam → CV Engine → Local Agent → Gemini AI
 
 ---
 
-## 🎯 For Hackathon
+## For Hackathon
 
 **Demo Flow** (3 minutes):
 1. **Show live detection** (30s)
@@ -233,7 +233,7 @@ Webcam → CV Engine → Local Agent → Gemini AI
 
 ---
 
-## 📝 Future Enhancements
+## Future Enhancements
 
 - [ ] GPS integration for outdoor navigation
 - [ ] Route planning with Google Maps
@@ -245,7 +245,7 @@ Webcam → CV Engine → Local Agent → Gemini AI
 
 ---
 
-## 📄 License
+## License
 
 See LICENSE file for details.
 
@@ -255,7 +255,7 @@ See LICENSE file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Google Gemini** for intelligent AI
 - **YOLOv8** for object detection
