@@ -1,0 +1,36 @@
+# Computer Vision
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0,<2.0.0
+
+# AWS Integration (optional)
+boto3>=1.34.0
+botocore>=1.34.0
+
+# Gemini Integration (optional)
+google-generativeai>=0.3.0
+
+# Audio Processing (optional - can be installed separately)
+# Uncomment if you want audio features:
+# speechrecognition>=3.10.0
+# pyttsx3>=2.90
+# gtts>=2.4.0
+# playsound>=1.3.0
+# pyaudio - See special instructions below
+
+# UI Framework
+streamlit>=1.29.0
+# streamlit-webrtc>=0.47.0  # Optional for real-time streaming
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+requests>=2.31.0
+pillow>=10.0.0
+
+# Note: PyAudio installation on Windows:
+# pip install pipwin
+# pipwin install pyaudio
