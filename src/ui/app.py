@@ -7,7 +7,6 @@ import numpy as np
 from PIL import Image
 import time
 from typing import Optional
-import av
 
 # Import our modules
 import sys
@@ -21,8 +20,15 @@ from src.audio.tts_output import TTSEngine
 from src.audio.speech_input import SpeechRecognizer
 from config.settings import settings
 
-# Import webrtc for streaming
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+# Try to import webrtc for streaming (optional)
+WEBRTC_AVAILABLE = False
+try:
+    import av
+    from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+    WEBRTC_AVAILABLE = True
+except ImportError:
+    print("Warning: streamlit-webrtc or av not available. Live stream mode disabled.")
+    print("Install with: pip install streamlit-webrtc av")
 
 # Page configuration
 st.set_page_config(
@@ -104,11 +110,16 @@ def initialize_components():
 def render_header():
     """Render page header."""
     st.markdown('<div class="main-header">👁️ Vision Navigation Assistant</div>', unsafe_allow_html=True)
-    st.markdown("**AI-Powered Real-Time Navigation for the Visually Impaired**")
+    st.markdown("**🔴 LIVE Real-Time Navigation for the Visually Impaired**")
     
-    # Display feature status
+    # Display feature status with Live Stream emphasis
     feature_status = settings.get_feature_status()
     status_icons = []
+    
+    if WEBRTC_AVAILABLE:
+        status_icons.append("🔴 Live Stream ACTIVE")
+    else:
+        status_icons.append("⚠️ Live Stream NEEDED")
     
     if feature_status['use_gemini']:
         status_icons.append("✓ Gemini VLM")
@@ -129,11 +140,21 @@ def render_sidebar():
     with st.sidebar:
         st.header("⚙️ Settings")
         
-        # Mode selection
+        # Mode selection - Live Stream is PRIMARY mode
+        if WEBRTC_AVAILABLE:
+            mode_options = ["Live Webcam Stream", "Upload Image", "Webcam Snapshot"]
+            st.success("🔴 Live Stream Ready!")
+        else:
+            mode_options = ["Upload Image", "Webcam Snapshot"]
+            st.error("⚠️ LIVE STREAM REQUIRED!")
+            st.info("Run: run_livestream.bat")
+            st.caption("Or install: pip install streamlit-webrtc av")
+        
         demo_mode = st.radio(
             "Demo Mode",
-            ["Live Webcam Stream", "Upload Image", "Webcam Snapshot"],
-            help="Select how to capture images for analysis"
+            mode_options,
+            index=0,  # Default to first option (Live Stream when available)
+            help="Live Stream is the primary mode for real-time navigation"
         )
         
         st.markdown("---")
@@ -171,34 +192,41 @@ def render_sidebar():
     return demo_mode
 
 
-class VideoProcessor(VideoProcessorBase):
-    """Video processor for real-time webcam detection."""
-    
-    def __init__(self):
-        self.detector = st.session_state.detector
-        self.frame_count = 0
-    
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        """Process incoming video frame."""
-        # Convert to numpy array
-        img = frame.to_ndarray(format="bgr24")
+# Define VideoProcessor only if WebRTC is available
+if WEBRTC_AVAILABLE:
+    class VideoProcessor(VideoProcessorBase):
+        """Video processor for real-time webcam detection."""
         
-        # Run detection
-        annotated_frame, detections = self.detector.detect(img)
+        def __init__(self):
+            self.detector = st.session_state.detector
+            self.frame_count = 0
         
-        # Store latest detection in session state
-        if detections:
-            structured_data = self.detector.get_structured_output(detections)
-            st.session_state.last_detection = {
-                'frame': img,
-                'data': structured_data,
-                'timestamp': time.time()
-            }
-        
-        self.frame_count += 1
-        
-        # Convert back to av.VideoFrame
-        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
+        def recv(self, frame):  # Type hint removed for compatibility
+            """Process incoming video frame."""
+            import av
+            # Convert to numpy array
+            img = frame.to_ndarray(format="bgr24")
+            
+            # Run detection
+            annotated_frame, detections = self.detector.detect(img)
+            
+            # Store latest detection in session state
+            if detections:
+                structured_data = self.detector.get_structured_output(detections)
+                st.session_state.last_detection = {
+                    'frame': img,
+                    'data': structured_data,
+                    'timestamp': time.time()
+                }
+            
+            self.frame_count += 1
+            
+            # Convert back to av.VideoFrame
+            return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
+else:
+    # Dummy class for when WebRTC is not available
+    class VideoProcessor:
+        pass
 
 
 def render_video_feed(demo_mode):
@@ -209,30 +237,35 @@ def render_video_feed(demo_mode):
     webcam_image = None
     
     if demo_mode == "Live Webcam Stream":
-        st.info("📹 **Live Stream Mode** - Real-time object detection")
-        st.caption("Allow camera access when prompted by your browser")
-        
-        # WebRTC streamer for real-time video
-        webrtc_ctx = webrtc_streamer(
-            key="vision-nav-stream",
-            video_processor_factory=VideoProcessor,
-            rtc_configuration=RTCConfiguration(
-                {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-            ),
-            media_stream_constraints={
-                "video": {
-                    "width": {"ideal": 1280},
-                    "height": {"ideal": 720},
+        if WEBRTC_AVAILABLE:
+            st.info("📹 **Live Stream Mode** - Real-time object detection")
+            st.caption("Allow camera access when prompted by your browser")
+            
+            # WebRTC streamer for real-time video
+            webrtc_ctx = webrtc_streamer(
+                key="vision-nav-stream",
+                video_processor_factory=VideoProcessor,
+                rtc_configuration=RTCConfiguration(
+                    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+                ),
+                media_stream_constraints={
+                    "video": {
+                        "width": {"ideal": 1280},
+                        "height": {"ideal": 720},
+                    },
+                    "audio": False
                 },
-                "audio": False
-            },
-            async_processing=True,
-        )
-        
-        if webrtc_ctx.state.playing:
-            st.success("🟢 Stream active - Real-time detection running")
+                async_processing=True,
+            )
+            
+            if webrtc_ctx.state.playing:
+                st.success("🟢 Stream active - Real-time detection running")
+            else:
+                st.warning("⚪ Stream inactive - Click 'START' to begin")
         else:
-            st.warning("⚪ Stream inactive - Click 'START' to begin")
+            st.error("❌ Live stream mode requires additional packages")
+            st.code("pip install streamlit-webrtc av")
+            st.info("💡 Use 'Upload Image' or 'Webcam Snapshot' mode instead")
     
     elif demo_mode == "Upload Image":
         uploaded_file = st.file_uploader(
