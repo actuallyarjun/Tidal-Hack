@@ -142,6 +142,17 @@ def render_header():
     
     st.caption(" | ".join(status_icons))
     st.markdown("---")
+    
+    # Announce app status via TTS on first load
+    if 'announced' not in st.session_state:
+        st.session_state.announced = True
+        if hasattr(st.session_state, 'tts') and st.session_state.tts.is_available():
+            status_message = "Vision Navigation Assistant ready."
+            if WEBRTC_AVAILABLE:
+                status_message += " Live stream available."
+            if feature_status['use_gemini']:
+                status_message += " Gemini AI active."
+            st.session_state.tts.speak(status_message, blocking=False)
 
 
 def render_sidebar():
@@ -177,12 +188,21 @@ def render_sidebar():
         # Feature status
         feature_status = settings.get_feature_status()
         
+        # Check actual availability
+        speech_available = st.session_state.speech_recognizer.is_available() if hasattr(st.session_state, 'speech_recognizer') else False
+        tts_available = st.session_state.tts.is_available() if hasattr(st.session_state, 'tts') else False
+        
         st.info(f"""
         **CV Engine:** YOLOv8n  
-        **AI Engine:** {"Gemini 1.5 Flash ✓" if feature_status['use_gemini'] else "Basic Mode"}  
-        **TTS:** {"Enabled ✓" if st.session_state.tts.is_available() else "Disabled"}  
-        **Speech:** {"Enabled ✓" if st.session_state.speech_recognizer.is_available() else "Disabled"}
+        **AI Engine:** {"Gemini 2.0 Flash ✓" if feature_status['use_gemini'] else "Basic Mode"}  
+        **TTS:** {"Enabled ✓" if tts_available else "Disabled ✗"}  
+        **Speech:** {"Enabled ✓" if speech_available else "Disabled ✗"}
         """)
+        
+        # Show warning if speech is disabled
+        if not speech_available:
+            st.warning("⚠️ Voice commands unavailable")
+            st.caption("Run: pip install pyaudio SpeechRecognition")
         
         st.markdown("---")
         st.subheader("Actions")
@@ -230,16 +250,27 @@ if WEBRTC_AVAILABLE:
             # Run detection
             annotated_frame, detections = self.detector.detect(img)
             
-            # Store latest detection in session state
-            if detections:
-                structured_data = self.detector.get_structured_output(detections)
-                st.session_state.last_detection = {
-                    'frame': img,
-                    'data': structured_data,
-                    'timestamp': time.time()
-                }
+            # ALWAYS store latest frame, even if no objects detected
+            # User might ask "what do you see?" and we need the frame!
+            structured_data = self.detector.get_structured_output(detections) if detections else {
+                'objects': [],
+                'total_objects': 0,
+                'safety_status': 'clear',
+                'nearest_distance': None
+            }
+            
+            st.session_state.last_detection = {
+                'frame': img,
+                'data': structured_data,
+                'timestamp': time.time()
+            }
             
             self.frame_count += 1
+            
+            # Debug logging every 30 frames (once per second at ~30fps)
+            if self.frame_count % 30 == 0:
+                obj_count = structured_data.get('total_objects', 0)
+                print(f"[VIDEO] Frame {self.frame_count} processed | Objects: {obj_count} | Detection saved: YES")
             
             # Convert back to av.VideoFrame
             return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
@@ -277,6 +308,16 @@ def render_video_feed(demo_mode):
                 },
                 async_processing=True,
             )
+            
+            # Announce stream status via TTS
+            stream_status_key = f"stream_status_{webrtc_ctx.state.playing}"
+            if stream_status_key not in st.session_state:
+                st.session_state[stream_status_key] = True
+                if hasattr(st.session_state, 'tts') and st.session_state.tts.is_available():
+                    if webrtc_ctx.state.playing:
+                        st.session_state.tts.speak("Live stream active. Real-time detection running.", blocking=False)
+                    else:
+                        st.session_state.tts.speak("Stream inactive. Click START to begin.", blocking=False)
             
             if webrtc_ctx.state.playing:
                 st.success("🟢 Stream active - Real-time detection running")
@@ -432,74 +473,145 @@ def render_detection_status():
 
 
 def render_query_interface():
-    """Render query interface."""
+    """Render voice-first query interface for blind users."""
     st.markdown("---")
-    st.header("💬 Ask the AI Assistant")
+    st.header("🎤 Voice Commands")
+    st.caption("This app is designed for voice interaction - Press the button and speak")
     
-    # Query input
-    col_query, col_voice = st.columns([4, 1])
+    # Show example commands
+    with st.expander("📝 Example Commands (Click to expand)"):
+        st.markdown("""
+        **Safety Checks:**
+        - "Is it safe?"
+        - "Can I walk forward?"
+        - "Any obstacles?"
+        
+        **Scene Description:**
+        - "What do you see?"
+        - "Describe what's ahead"
+        - "What's around me?"
+        
+        **Navigation:**
+        - "Where can I go?"
+        - "Guide me"
+        - "Which direction is clear?"
+        
+        **Find Objects:**
+        - "Find the door"
+        - "Where is the chair?"
+        - "Locate the table"
+        """)
     
-    with col_query:
-        user_query = st.text_input(
-            "Type your question",
-            placeholder="e.g., 'Describe what you see' or 'Is it safe to walk forward?'",
-            key="query_input"
-        )
-    
-    with col_voice:
-        st.write("")  # Spacing
-        voice_button = st.button("🎤 Voice", help="Use voice input")
+    # Large, prominent voice button
+    voice_button = st.button(
+        "🎤 PRESS TO SPEAK",
+        type="primary",
+        use_container_width=True,
+        help="Click this button and speak your command"
+    )
     
     # Process query
     query_to_process = None
     
-    col_send, col_clear = st.columns([1, 1])
-    
-    with col_send:
-        if st.button("🚀 Send Query", type="primary", use_container_width=True) and user_query:
-            query_to_process = user_query
-    
-    with col_clear:
-        if st.button("🔄 Clear Input", use_container_width=True):
-            st.session_state.query_input = ""
-            st.rerun()
-    
     # Voice input
     if voice_button:
-        if st.session_state.speech_recognizer.is_available():
-            with st.spinner("🎤 Listening..."):
+        # Check if speech recognizer is available
+        if not hasattr(st.session_state, 'speech_recognizer'):
+            st.error("❌ Speech recognizer not initialized. Please refresh the page.")
+            # Speak error
+            if st.session_state.tts.is_available():
+                st.session_state.tts.speak("Error: Speech recognizer not initialized. Please refresh the page.", blocking=False)
+        elif not st.session_state.speech_recognizer.is_available():
+            st.error("❌ Speech recognition not available")
+            st.info("💡 Install: pip install pyaudio SpeechRecognition")
+            # Speak error
+            if st.session_state.tts.is_available():
+                st.session_state.tts.speak("Error: Speech recognition not available. Please install required packages.", blocking=False)
+        else:
+            # Speech recognizer is available - try to listen
+            st.info("🎤 LISTENING... Speak now!")
+            
+            # Speak prompt
+            if st.session_state.tts.is_available():
+                st.session_state.tts.speak("Listening", blocking=False)
+            
+            try:
                 recognized_text = st.session_state.speech_recognizer.listen_once(timeout=5)
                 if recognized_text:
-                    st.success(f"Heard: {recognized_text}")
+                    # Show what was heard in LARGE, prominent text
+                    st.markdown("---")
+                    st.markdown("### 🎤 You Said:")
+                    st.markdown(f"## **\"{recognized_text}\"**")
+                    st.markdown("---")
+                    
+                    # Speak what was heard
+                    if st.session_state.tts.is_available():
+                        st.session_state.tts.speak(f"You said: {recognized_text}", blocking=False)
+                    
                     query_to_process = recognized_text
                 else:
-                    st.warning("No speech detected. Please try again.")
-        else:
-            st.error("Speech recognition not available. Please install required packages.")
+                    st.warning("⚠️ No speech detected. Please try again.")
+                    # Speak warning
+                    if st.session_state.tts.is_available():
+                        st.session_state.tts.speak("No speech detected. Please try again.", blocking=False)
+            except Exception as e:
+                st.error(f"❌ Speech recognition error: {e}")
+                # Speak error
+                if st.session_state.tts.is_available():
+                    st.session_state.tts.speak("Error occurred. Please try again.", blocking=False)
     
     # Execute query
-    if query_to_process and st.session_state.last_detection:
-        with st.spinner("🤔 AI is thinking..."):
-            # Get agent response
-            response = st.session_state.agent.process_query(
-                query_to_process,
-                st.session_state.last_detection['frame'],
-                st.session_state.last_detection['data']
-            )
+    if query_to_process:
+        if not st.session_state.last_detection:
+            # No detection available - inform user
+            st.error("⚠️ No video feed available!")
+            st.warning("The stream may be starting or the camera needs a moment...")
             
-            # Display response
-            st.success("**AI Response:**")
-            st.write(response['text_response'])
+            # More helpful guidance
+            st.info("""
+            **What to do:**
+            1. Make sure live stream is running (you should see video)
+            2. Wait 2-3 seconds for first frame to process
+            3. Make sure something is in view of the camera
+            4. Then try your voice command again
+            """)
+            
+            # Check terminal for frame processing logs
+            st.caption("💡 Check the terminal window for [VIDEO] messages to confirm frames are being processed")
+            
+            if st.session_state.tts.is_available():
+                st.session_state.tts.speak("Waiting for video feed. Make sure the stream is running.", blocking=False)
+        else:
+            # Speak "thinking"
+            if st.session_state.tts.is_available():
+                st.session_state.tts.speak("Thinking", blocking=False)
+                
+            with st.spinner("🤔 AI is thinking..."):
+                # Get agent response
+                response = st.session_state.agent.process_query(
+                    query_to_process,
+                    st.session_state.last_detection['frame'],
+                    st.session_state.last_detection['data']
+                )
+            
+            # Display response in LARGE, prominent text
+            st.markdown("---")
+            st.markdown("### 🤖 AI Response:")
+            st.markdown(f"## **{response['text_response']}**")
+            st.markdown("---")
             
             # Show which system was used
             if response.get('used_vlm'):
-                st.caption("🌟 Response generated using Gemini AI")
+                st.caption("🌟 Using Gemini AI")
             else:
-                st.caption("🔧 Response generated using basic rules")
+                st.caption("🔧 Using basic mode")
             
-            # Speak response
+            # Speak response (MOST IMPORTANT - blind users need to hear this!)
             if st.session_state.tts.is_available():
                 st.session_state.tts.speak(response['text_response'], blocking=False)
+                st.success("🔊 Speaking response...")
+            else:
+                st.warning("⚠️ Text-to-speech not available")
             
             # Log conversation
             st.session_state.conversation_log.append({

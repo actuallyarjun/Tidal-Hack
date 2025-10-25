@@ -21,10 +21,10 @@ class GeminiVLMTool:
                 import google.generativeai as genai
                 genai.configure(api_key=settings.gemini_api_key)
                 
-                # Use Gemini 1.5 Pro for vision capabilities
-                self.model = genai.GenerativeModel('gemini-1.5-pro')
+                # Use Gemini 2.0 Flash Experimental for better navigation
+                self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
                 self.api_available = True
-                print("✓ Gemini VLM initialized successfully")
+                print("[GEMINI] Using Gemini 2.0 Flash Experimental - Latest model")
             except Exception as e:
                 print(f"Warning: Could not initialize Gemini: {e}")
                 print("Using mock responses instead.")

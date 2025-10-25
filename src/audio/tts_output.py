@@ -35,20 +35,20 @@ class TTSEngine:
                         break
                 
                 self.available = True
-                print("✓ TTS Engine initialized (offline mode)")
+                print("[TTS] Engine initialized (offline mode)")
                 
             except Exception as e:
-                print(f"Warning: Could not initialize pyttsx3: {e}")
-                print("TTS will be disabled. Install pyttsx3 for offline TTS.")
+                print(f"[TTS] Warning: Could not initialize pyttsx3: {e}")
+                print("[TTS] TTS will be disabled. Install pyttsx3 for offline TTS.")
         else:
             # Online mode (gTTS)
             try:
                 import gtts
                 self.available = True
-                print("✓ TTS Engine initialized (online mode)")
+                print("[TTS] Engine initialized (online mode)")
             except Exception as e:
-                print(f"Warning: Could not import gTTS: {e}")
-                print("TTS will be disabled.")
+                print(f"[TTS] Warning: Could not import gTTS: {e}")
+                print("[TTS] TTS will be disabled.")
     
     def speak(self, text: str, blocking: bool = False):
         """
@@ -61,7 +61,7 @@ class TTSEngine:
         if not text or not self.available:
             return
         
-        print(f"🔊 Speaking: {text}")
+        print(f"[TTS] Speaking: {text[:50]}...")
         
         try:
             if self.use_online:
