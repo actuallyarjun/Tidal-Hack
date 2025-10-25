@@ -15,20 +15,37 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.cv_engine.detector import ObjectDetector
 from src.cloud_agent.local_agent import LocalNavigationAgent
-from src.cloud_agent.bedrock_agent import BedrockNavigationAgent
 from src.audio.tts_output import TTSEngine
 from src.audio.speech_input import SpeechRecognizer
 from config.settings import settings
 
 # Try to import webrtc for streaming (optional)
 WEBRTC_AVAILABLE = False
+WEBRTC_ERROR = None
 try:
     import av
     from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
     WEBRTC_AVAILABLE = True
-except ImportError:
-    print("Warning: streamlit-webrtc or av not available. Live stream mode disabled.")
-    print("Install with: pip install streamlit-webrtc av")
+    print("="* 60)
+    print("[OK] WebRTC packages loaded successfully!")
+    print(f"[OK] av version: {av.__version__}")
+    print(f"[OK] WEBRTC_AVAILABLE = {WEBRTC_AVAILABLE}")
+    print("="* 60)
+except ImportError as e:
+    WEBRTC_ERROR = str(e)
+    print("="* 60)
+    print(f"[NO] WebRTC import failed: {e}")
+    print("[NO] Install with: pip install streamlit-webrtc av")
+    print(f"[NO] WEBRTC_AVAILABLE = {WEBRTC_AVAILABLE}")
+    print("="* 60)
+    WEBRTC_AVAILABLE = False
+except Exception as e:
+    WEBRTC_ERROR = str(e)
+    print("="* 60)
+    print(f"[ERR] Unexpected error: {e}")
+    print(f"[ERR] WEBRTC_AVAILABLE = {WEBRTC_AVAILABLE}")
+    print("="* 60)
+    WEBRTC_AVAILABLE = False
 
 # Page configuration
 st.set_page_config(
@@ -89,11 +106,8 @@ def initialize_components():
             # Initialize detector
             st.session_state.detector = ObjectDetector()
             
-            # Initialize agent (use Bedrock if configured, otherwise local)
-            if settings.use_bedrock and settings.has_bedrock_agent():
-                st.session_state.agent = BedrockNavigationAgent()
-            else:
-                st.session_state.agent = LocalNavigationAgent()
+            # Initialize Gemini-powered agent
+            st.session_state.agent = LocalNavigationAgent()
             
             # Initialize TTS
             st.session_state.tts = TTSEngine()
@@ -110,26 +124,21 @@ def initialize_components():
 def render_header():
     """Render page header."""
     st.markdown('<div class="main-header">👁️ Vision Navigation Assistant</div>', unsafe_allow_html=True)
-    st.markdown("**🔴 LIVE Real-Time Navigation for the Visually Impaired**")
+    st.markdown("**🔴 LIVE Real-Time AI Navigation • Powered by Gemini**")
     
-    # Display feature status with Live Stream emphasis
+    # Display feature status
     feature_status = settings.get_feature_status()
     status_icons = []
     
     if WEBRTC_AVAILABLE:
-        status_icons.append("🔴 Live Stream ACTIVE")
+        status_icons.append("🔴 Live Stream")
     else:
-        status_icons.append("⚠️ Live Stream NEEDED")
+        status_icons.append("⚠️ Stream Unavailable")
     
     if feature_status['use_gemini']:
-        status_icons.append("✓ Gemini VLM")
+        status_icons.append("✓ Gemini AI")
     else:
-        status_icons.append("○ Mock Responses")
-    
-    if feature_status['use_bedrock']:
-        status_icons.append("✓ AWS Bedrock")
-    else:
-        status_icons.append("○ Local Agent")
+        status_icons.append("○ Basic Mode")
     
     st.caption(" | ".join(status_icons))
     st.markdown("---")
@@ -141,14 +150,19 @@ def render_sidebar():
         st.header("⚙️ Settings")
         
         # Mode selection - Live Stream is PRIMARY mode
+        # Debug: Show actual status
+        st.caption(f"Debug: WEBRTC_AVAILABLE = {WEBRTC_AVAILABLE}")
+        
         if WEBRTC_AVAILABLE:
             mode_options = ["Live Webcam Stream", "Upload Image", "Webcam Snapshot"]
             st.success("🔴 Live Stream Ready!")
         else:
             mode_options = ["Upload Image", "Webcam Snapshot"]
-            st.error("⚠️ LIVE STREAM REQUIRED!")
-            st.info("Run: run_livestream.bat")
-            st.caption("Or install: pip install streamlit-webrtc av")
+            st.error("⚠️ LIVE STREAM UNAVAILABLE")
+            if WEBRTC_ERROR:
+                st.caption(f"Error: {WEBRTC_ERROR}")
+            st.info("Install: pip install streamlit-webrtc av")
+            st.caption("Then restart the app")
         
         demo_mode = st.radio(
             "Demo Mode",
@@ -165,8 +179,7 @@ def render_sidebar():
         
         st.info(f"""
         **CV Engine:** YOLOv8n  
-        **VLM:** {"Gemini 1.5 Pro ✓" if feature_status['use_gemini'] else "Mock Mode"}  
-        **Agent:** {"AWS Bedrock ✓" if feature_status['use_bedrock'] else "Local"}  
+        **AI Engine:** {"Gemini 1.5 Flash ✓" if feature_status['use_gemini'] else "Basic Mode"}  
         **TTS:** {"Enabled ✓" if st.session_state.tts.is_available() else "Disabled"}  
         **Speech:** {"Enabled ✓" if st.session_state.speech_recognizer.is_available() else "Disabled"}
         """)
@@ -198,7 +211,14 @@ if WEBRTC_AVAILABLE:
         """Video processor for real-time webcam detection."""
         
         def __init__(self):
-            self.detector = st.session_state.detector
+            # Wait for session state to be initialized
+            if 'detector' in st.session_state:
+                self.detector = st.session_state.detector
+            else:
+                # Detector not initialized yet, initialize it now
+                from src.cv_engine.detector import ObjectDetector
+                self.detector = ObjectDetector()
+                st.session_state.detector = self.detector
             self.frame_count = 0
         
         def recv(self, frame):  # Type hint removed for compatibility
@@ -473,11 +493,9 @@ def render_query_interface():
             
             # Show which system was used
             if response.get('used_vlm'):
-                st.caption("🌟 Response generated using Gemini VLM")
-            elif response.get('used_bedrock'):
-                st.caption("☁️ Response generated using AWS Bedrock")
+                st.caption("🌟 Response generated using Gemini AI")
             else:
-                st.caption("🔧 Response generated using local rules")
+                st.caption("🔧 Response generated using basic rules")
             
             # Speak response
             if st.session_state.tts.is_available():
@@ -521,8 +539,13 @@ def render_conversation_history():
 
 def main():
     """Main application."""
-    # Initialize components
+    # Initialize components FIRST before anything else
     initialize_components()
+    
+    # Verify initialization completed
+    if 'initialized' not in st.session_state:
+        st.error("Failed to initialize components. Please refresh the page.")
+        st.stop()
     
     # Render header
     render_header()

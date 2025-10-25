@@ -52,12 +52,38 @@ class DistanceEstimator:
         """
         self.image_height = image_height
         
-        # Approximate focal length calculation if not provided
+        # Improved focal length estimation for common devices
         if focal_length is None:
-            # Typical smartphone: focal_length_px = (focal_length_mm / sensor_height_mm) * image_height_px
-            self.focal_length = (settings.focal_length_mm / settings.sensor_height_mm) * image_height
+            # Check if manual focal length provided in settings
+            if settings.focal_length_mm and settings.sensor_height_mm:
+                # Use manual camera specs if provided
+                self.focal_length = (settings.focal_length_mm / settings.sensor_height_mm) * image_height
+            else:
+                # Auto-calibrate based on typical webcam/phone cameras
+                # Most webcams: ~60-70 degree FOV, phones: ~70-80 degree FOV
+                # For 720p: typical focal length is ~600-800 pixels
+                # For 480p: typical focal length is ~400-500 pixels
+                
+                # Use adaptive estimation based on resolution
+                if image_height >= 720:
+                    # HD webcam (720p/1080p)
+                    self.focal_length = image_height * 0.9  # ~650 for 720p
+                elif image_height >= 480:
+                    # Standard webcam (480p)
+                    self.focal_length = image_height * 1.0  # ~480 for 480p
+                else:
+                    # Lower resolution
+                    self.focal_length = image_height * 1.2
         else:
             self.focal_length = focal_length
+        
+        # Load calibration factor from settings
+        self.calibration_factor = settings.calibration_factor
+        
+        print(f"Distance Estimator initialized:")
+        print(f"  Image Height: {image_height}px")
+        print(f"  Focal Length: {self.focal_length:.1f}px")
+        print(f"  Calibration Factor: {self.calibration_factor:.2f}")
     
     def estimate_distance(
         self, 
@@ -85,9 +111,43 @@ class DistanceEstimator:
         real_height = self.OBJECT_HEIGHTS.get(class_name.lower(), 1.0)
         
         # Distance = (Real Height × Focal Length) / Pixel Height
-        distance = (real_height * self.focal_length) / object_height_px
+        # Apply calibration factor for real-world adjustment
+        distance = (real_height * self.focal_length * self.calibration_factor) / object_height_px
+        
+        # Clamp to reasonable range (0.1m to 20m)
+        distance = max(0.1, min(20.0, distance))
         
         return round(distance, 2)
+    
+    def calibrate(self, bbox: Tuple[float, float, float, float], 
+                  class_name: str, known_distance: float):
+        """
+        Calibrate the estimator using a known object at known distance.
+        
+        Args:
+            bbox: Bounding box of reference object
+            class_name: Object class name
+            known_distance: Actual measured distance in meters
+        
+        Example:
+            # Measure a person standing 2 meters away
+            estimator.calibrate(person_bbox, 'person', 2.0)
+        """
+        _, y1, _, y2 = bbox
+        object_height_px = abs(y2 - y1)
+        
+        if object_height_px == 0:
+            return
+        
+        real_height = self.OBJECT_HEIGHTS.get(class_name.lower(), 1.0)
+        
+        # Calculate what the focal length should be for accurate distance
+        # known_distance = (real_height * focal_length * calibration) / object_height_px
+        # calibration = (known_distance * object_height_px) / (real_height * focal_length)
+        self.calibration_factor = (known_distance * object_height_px) / (real_height * self.focal_length)
+        
+        print(f"✓ Calibrated! Adjustment factor: {self.calibration_factor:.2f}")
+        print(f"  Reference: {class_name} at {known_distance}m, {object_height_px:.0f}px tall")
     
     def calculate_relative_position(
         self, 
