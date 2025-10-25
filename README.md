@@ -8,12 +8,20 @@ Live object detection + voice commands + intelligent scene understanding
 
 ## 🚀 Quick Start
 
-### Run the App
+### Windows
 ```
 Double-click: RUN_THIS.bat
 ```
 
+### macOS/Linux
+```bash
+chmod +x RUN_THIS.sh
+./RUN_THIS.sh
+```
+
 That's it! Your browser will open automatically.
+
+📖 **Full setup guide:** See `CROSS_PLATFORM_SETUP.md` for detailed instructions
 
 ### Network Access (Phone/Tablet)
 The app automatically starts with network access enabled. When you run it, you'll see:

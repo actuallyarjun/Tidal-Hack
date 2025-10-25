@@ -15,7 +15,12 @@
                     HOW TO RUN
 ================================================================
 
-1. Double-click: RUN_THIS.bat
+WINDOWS:
+  1. Double-click: RUN_THIS.bat
+
+macOS/LINUX:
+  1. chmod +x RUN_THIS.sh (first time only)
+  2. ./RUN_THIS.sh
 
 2. Browser opens AUTOMATICALLY to http://localhost:8501
 
@@ -26,6 +31,8 @@
 5. See live object detection!
 
 IMPORTANT: Don't use http://0.0.0.0:8501 - Use localhost:8501!
+
+For full setup: See CROSS_PLATFORM_SETUP.md
 
 ================================================================
                VOICE COMMANDS (After Stream Starts)
